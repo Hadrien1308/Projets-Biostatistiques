@@ -1,0 +1,306 @@
+---
+title: "Initiation aux modèles longitudinaux - Didanosine vs Zalcitabine pour des patients atteints de VIH"
+author: "Hadrien Cadiou"
+date: "2023-10-18"
+output:
+  html_document:
+    toc: true
+    latex_engine: xelatex # utilisez xelatex ou pdflatex selon vos préférences
+    keep_tex: true # optionnelle, mais utile pour déboguer
+    toc_depth: 2 # ajustez pour définir la profondeur de la table des matières
+  word_document:
+    toc: true
+  pdf_document:
+    toc: true
+header-includes:
+  - "\\usepackage{fancyhdr}"
+  - "\\usepackage{graphicx}" # pour les images
+  - "\\fancypagestyle{firstpage}{%" # définir le style de la première page
+  - "  \\fancyhf{}" # effacer les en-têtes et pieds de page par défaut
+  - "  \\fancyhead[L]{\\includegraphics[width=2cm]{UB-logo2.png}}" 
+  - "  \\fancyhead[R]{M2 MSS}" 
+  - "  \\renewcommand{\\headrulewidth}{0.4pt}" # pour la ligne horizontale
+  - "}"
+  - "\\pagestyle{fancy}" # style par défaut pour les autres pages
+  - "\\fancyhf{}" # effacer les en-têtes et pieds de page par défaut pour le style fancy
+  - "\\fancyfoot[C]{\\thepage}" # ajouter le numéro de page au centre du pied de page
+  - "\\renewcommand{\\headrulewidth}{0pt}" # supprimer la barre horizontale pour le style fancy
+  - "\\renewcommand{\\contentsname}{Table des matières}" 
+  - "\\usepackage{titling}"
+  - "\\setlength{\\droptitle}{4em}"  # ajuster l'espacement du titre
+  - "\\pretitle{\\begin{center}\\Huge\\bfseries}"  
+  - "\\posttitle{\\end{center}\\vspace{1em}}"  
+  - "\\preauthor{\\begin{center}\\large}"  
+  - "\\postauthor{\\end{center}\\vspace{1em}}"  
+  - "\\date{\\today}" 
+---
+\thispagestyle{firstpage}
+
+```{r, include=FALSE}
+# installation du package si ce n'est pas fait
+# install.packages("joineR")
+library("joineR")
+library(ggplot2)
+library(viridis)
+library(lme4)
+library(gridExtra)
+library(xtable)
+#help(lmer)
+# chargement des données
+#data(aids, package = "joineR")
+```
+
+\newpage
+
+# Introduction
+
+\quad L’évaluation de la réponse aux traitements est réalisée par la mesure du
+nombre de lymphocythes T CD4+ (cellules cibles du virus et acteurs majeur de la réponse immunologique).\newline
+\quad L’analyse de l’évolution de ces marqueurs prédictifs de l’évolution clinique de la
+maladie permet de décrire l’histoire naturelle de la maladie mais également d’évaluer l’efficacité
+des traitements.
+
+\hspace{1cm} Dans de nombreuses maladies, l’examen des mesures répétées de marqueurs
+biologiques permet de suivre l’évolution de l’état du patient et d’anticiper la survenue d’événements
+cliniques.
+
+# I -  Problématique clinique:
+
+On se demande donc, si un traitement est plus (ddC ou ddl) est plus efficace qu'un autre ? Est-ce qu'il y a un effet du traitement ?
+C'est à dire est-ce que le nombre de CD4 augmente au cours du temps ou diminue ? 
+Si le traitement est efficace on s'attend  a voir plus de CD4.
+
+# II- Modélisation:
+
+Nous allons nous interesser aux deux modèles linéaires à effets mixtes avec intercept et pente aléatoire suivants :
+**Modèle 1 :**
+$$CD4_{ij} = \beta_0 + \beta_1 \times \text{obstime}_{ij} + \beta_2 \times \text{drug}_{ij} + b_{i0} + b_{i1} \times \text{obstime}_{ij} + \varepsilon_{ij}$$
+  Dans ce premier modèle nous tenons compte de la variabilité individuelle des patients (terme $b_{i0}$) en taux de CD4 (racine carrée du nombre de CD4, dans ces données).
+  Nous avons ensuite la variable 'obstime', modélisant l'augmentation ou la diminution du nombre de CD4 au cours du temps.
+  Par ailleurs certains médicaments pourraient augmenter/diminuer le nombre de cellules CD4 avec la variable 'drug', c'est ce que nous appellerons "l'effet du traitement"
+  Nous avons également introduit le terme '$b_{i1}\times \text{obstime}_{ij}$'  pour modéliser l'aléatoirité de l'augmentation/diminution du nombre de CD4, ce qui permet de capturer de manière unique la façon dont les cellules CD4 des patients réagissent au cours du temps.
+  Enfin, malgré tous ces facteurs, il y a toujours quelques variations inexpliquées, comme des erreurs de mesure ou d'autres facteurs inconnus. Nous les appelons 'erreurs' dans notre modèle.
+
+**Modèle 2:**
+
+$$CD4_{ij} = \beta_{0} + \beta_{1} \times \text{obstime}_{ij} + \beta_{2} \times \text{drug}_{ij} + \beta_{3} \times \text{obstime}_{ij} \times \text{drug}_{ij} + b_{i0} + b_{i1} \times \text{obstime}_{ij} + \varepsilon_{ij}$$
+  Dans le Modèle 2, on retrouve les même termes que le modèle 1, mais on ajoute en plus un terme d'interaction $\text{obstime}\times\text{drug}$, ce nous permet de voir si l'effet du temps sur les cellules CD4 est modifié par le type de traitement. Par exemple, pour un traitement donné, le nombre de cellules CD4 pourrait augmenter plus rapidement ou plus lentement avec le temps par rapport à un autre traitement ce qui nous permettra de répondre à la problèmatique.
+  
+# Résulats et Interprétations:
+
+## Interprétation Modèle 1:
+
+```{r, include=FALSE}
+model1 <- lmer(CD4 ~ obstime + drug + (1 + obstime|id), data=aids)
+summary(model1)
+```
+### 1) Analyse des effets fixes sur le nombre de CD4 :
+
+**Intercept:** (Valeur de référence): L'intercept représente la valeur estimée du nombre de CD4 lorsque toutes les autres variables sont à zéro. Dans notre modèle, cela correspond à une valeur estimée de 6,9 augmentation moyenne, avec une variabilité de 0,31, cet effet est très significatif ( t_value à 22).
+
+**Temps d'observation (obstime)**: Pour chaque unité supplémentaire de temps (par exemple, chaque mois ou chaque année, selon l'échelle de votre variable 'obstime'), le nombre de CD4 diminue en moyenne de 0,1 unité, cette diminution est significative (t_value = -10) et avec une variabvilité faible.
+
+**Médicament ddI (drugddI):** La prise du médicament ddI est associée à une augmentation moyenne du nombre de CD4 de 0,5 unité par rapport à la non-prise du médicament (ou par rapport à un autre médicament de référence, si d'autres médicaments sont inclus dans le modèle). Cependant, avec une valeur t de 1 et une erreur standard de 0,43, cet effet n'est pas aussi robuste ou significatif que les autres effets.
+
+  Selon notre modèle, le temps d'observation est un facteur déterminant majeur de la diminution du nombre de CD4. Bien que la prise du médicament ddI semble augmenter légèrement le nombre de CD4, cet effet n'est pas aussi clairement établi que la diminution due au temps. On pourrait également imaginer un modèle plus complexe qui prenne en compte d'autres facteurs potentiels pour comprendre pleinement les variations du nombre de CD4 chez les patients.
+
+### 2) Analyse des effets aléatoires sur le nombre de CD4 :
+
+**Intercept pour l'ID:** Il existe une grande variabilité entre les individus concernant le nombre initial de CD4, avec une variance de 21.0547 et un écart-type de 4.589.
+
+**Temps d'observation pour l'ID:** La manière dont le nombre de CD4 change avec le temps diffère également entre les individus, avec une variabilité de 0.0299.
+Une faible corrélation négative de -0.15 existe avec le temps d'observation, suggére que ceux qui commencent avec un nombre plus élevé de CD4 peuvent avoir une légère diminution plus importante au fil du temps.
+
+**Résidus:** La variabilité non expliquée par le modèle est de 3.0652, avec un écart-type de 1.751.
+
+  Le nombre de CD4 varie considérablement entre les individus, tant en termes de valeur de départ que de taux de changement. Il est essentiel d'en tenir compte dans l'interprétation clinique.
+
+
+```{r, include=FALSE}
+model2 <- lmer(CD4 ~ obstime * drug + (1 + obstime|id), data=aids, control = lmerControl(optimizer = "bobyqa"))
+summary(model2)
+```
+```{r, include=FALSE}
+aids$drug <- relevel(aids$drug, ref="ddI")
+model2 <- lmer(CD4 ~ obstime * drug + (1 + obstime|id), data=aids)
+summary(model2)
+```
+
+## Interprétation modèle 2:
+
+### 1) Analyse des effets fixes sur le nombre de CD4 :
+
+**Intercept**: La valeur de base du nombre de CD4, lorsque le temps d'observation est à zéro et sans prise du médicament ddI, est d'environ 6,95 unités.
+
+**Temps d'observation**: Pour chaque unité de temps supplémentaire, le nombre de CD4 diminue en moyenne de 0,16 unités. Cette baisse est significative, suggérant un déclin naturel du nombre de CD4 avec le temps.
+
+**Médicament ddI**: La prise du médicament ddI entraîne une augmentation moyenne du nombre de CD4 de 0,48 unités par rapport à sa non-prise.
+
+**Interaction obstime**: Cette interaction indique que le médicament ddI modifie l'effet du temps d'observation sur le nombre de CD4. L'augmentation est de 0,021 unités de CD4 pour chaque unité de temps supplémentaire lorsque le médicament est pris. Cependant, cet effet est faible et peut ne pas être cliniquement significatif.
+
+### 2) Analyse des effets aléatoires sur le nombre de CD4 :
+
+**Intercept pour l'ID**: La variabilité initiale du nombre de CD4 entre les individus est substantielle, avec une variance de 21,0660 et un écart-type de 4,590.
+
+**Temps d'observation pour l'ID**: La variabilité de la pente (effet du temps) est également notable entre les individus, avec une variance de 0,0302 et un écart-type de 0,174. Une faible corrélation négative (-0,15) suggère que ceux qui ont un nombre initial plus élevé de CD4 ont tendance à voir ce nombre diminuer légèrement plus rapidement avec le temps.
+
+   Il y a donc une variabilité significative dans le nombre de CD4 entre les individus, influencée à la fois par le temps et potentiellement par l'utilisation du médicament ddI. La prise en compte de cette variabilité est cruciale lors de l'interprétation clinique des résultats.
+   
+# Graphiques : Representation des modèles
+
+## Graphiques des trajectoires de tous les individus pour les deux modèles:
+
+```{r, echo = FALSE}
+# Predictions for model1
+aids$predicted1 <- predict(model1, aids)
+
+plot_model1 <- ggplot(aids, aes(x = obstime, y = CD4)) + 
+  geom_point(aes(group=as.factor(id), color = drug), alpha=0.5) + 
+  geom_line(aes(y = predicted1, group=as.factor(id), color=drug)) + 
+  labs(title = "modèle 1 : sans interaction",
+       x = "Temps d'observation", 
+       y = "CD4") + 
+  theme_bw()
+
+# Predictions pour model2
+aids$predicted2 <- predict(model2, aids)
+
+plot_model2 <- ggplot(aids, aes(x = obstime, y = CD4)) + 
+  geom_point(aes(group=as.factor(id), color = drug), alpha=0.5) + 
+  geom_line(aes(y = predicted2, group=as.factor(id), color=drug)) + 
+  labs(title = "modèle 2 : avec interaction",
+       x = "Temps d'observation", 
+       y = "CD4") + 
+  theme_bw()
+
+# Display the plots side by side
+grid.arrange(plot_model1, plot_model2, ncol=2)
+```
+  Ces graphiques montrent les trajectoires individuelles moyennes du nombre de CD4 pour chaque patients au cours du temps.
+  Pour y voir plus clair on selectionne seulement quelques individus pour voir comment les modèles s'ajustent aux données d'après notre modèlisation.
+  
+## Ajustement des modèles avec et sans intéraction sur un échantillon de patients aléatoires.
+
+```{r, include=FALSE}
+# Select a few random patients
+selected_ids <- sample(unique(aids$id), 4)
+subset_data <- subset(aids, id %in% selected_ids)
+
+# Get the predictions for these patients from model1 and model2
+subset_data$predicted_model1 <- predict(model1, newdata=subset_data)
+subset_data$predicted_model2 <- predict(model2, newdata=subset_data)
+
+# Plot the data and predictions for model1
+plot_model1 <- ggplot(subset_data, aes(x = obstime, y = CD4)) +
+  geom_point(aes(color = drug), alpha=0.5) +
+  geom_line(aes(y = predicted_model1, group=id, color=drug), linetype="dashed") +
+  labs(title = "Predictions du modèle sans intéraction",
+       subtitle = "Modèle sans intéraction",
+       x = "Temps d'observation", 
+       y = "taux CD4") + 
+  theme_bw() + 
+  theme(legend.position="right")
+
+# Plot the data and predictions for model2
+plot_model2 <- ggplot(subset_data, aes(x = obstime, y = CD4)) +
+  geom_point(aes(color = drug), alpha=0.5) +
+  geom_line(aes(y = predicted_model2, group=id, color=drug), linetype="dashed") +
+  labs(title = "Predictions du modèle avec interaction)",
+       subtitle = "Modèle avec intéraction du traitement",
+       x = "Temps d'observation", 
+       y = "taux CD4") + 
+  theme_bw() + 
+  theme(legend.position="right")
+
+# Print the plots
+print(plot_model1)
+print(plot_model2)
+```
+```{r, echo=FALSE}
+grid.arrange(plot_model1, plot_model2, ncol=2)
+```
+  On peut montrer aux cliniciens, pour les rassurer sur la validité des modèles statistiques avec et sans interactions prennent en compte une large par de la variabilité des donnés (comme préciser dans la partie I- modélisaiton). Mais d'après ces graphiques, il n'est pas evident de voir l'effet d'interaction du traitement, nous n'aurions pas pu détecter cet effet.
+  
+# III- Conclusion:
+
+  Les analyses des deux modèles, avec et sans interaction, fournissent des informations précieuses sur l'évolution du nombre de CD4 chez les patients et l'impact potentiel du médicament ddI.
+  Nous avons vu que le facteur temps d'observation est déterminant sur la diminution du nombre de CD4, du au fait que les patients sont atteints du VIH, nous avons vu que l'impact du médicament ddI et ddC semblent avoir un impact sur l'augmentation de CD4 par rapport à sa non-prise.
+  Mais même avec le modèle avec interaction l'augmentation du l'effet du traitement au cours du temps sur le nombre de CD4 reste faible.
+  La grande variabilité du taux de CD4 entre les individus et la variabilité dans la réaction au traitement influence le résultat obtenu sur le traitement, et montre la très grande variabilité des trajectoires individuelles
+  Les cliniciens doivent être prudents lors de l'interprétation de l'efficacité du médicament ddI. Bien qu'il semble augmenter le nombre de CD4, cet effet n'est pas aussi prononcé que la diminution naturelle due au temps, facteur d'interaction non significatif.
+  Au vu des décisions thérapeutiques on ne peut se permettre d'avoir un niveau non signification sur l'effet d'interaction du traitement avec le temps.
+  Il faudrait donc faire des études supplémentaires sont nécessaires pour confirmer l'effet du médicament ddI et identifier d'autres facteurs potentiels qui pourraient influencer le nombre de CD4.
+  
+# Annexe
+
+## Tables modèle 1
+```{r echo=FALSE, results='asis'}
+
+## Tables modèle 1
+# Fit the model
+model1 <- lmer(CD4 ~ obstime + drug + (1 + obstime|id), data=aids)
+
+# Extract the fixed effects
+fixed_effects <- summary(model1)$coefficients
+fixed_effects_df <- as.data.frame(fixed_effects)
+
+# Extract random effects
+random_effects <- as.data.frame(VarCorr(model1))
+names(random_effects) <- c("Effect", "Variance")
+
+# Print fixed effects table
+#print(fixed_effects_df)
+
+# Print random effects table
+#print(random_effects)
+# Titre pour la table des effets fixes
+cat("\\subsection*{Table des effets fixes}\n")
+
+# Convert fixed effects dataframe to LaTeX table and print
+latex_fixed_effects <- xtable(fixed_effects_df, caption = "Effets fixes du modèle 1")
+print(latex_fixed_effects, comment=FALSE, floating=FALSE, caption.placement="top")
+
+# Espace entre les tables
+cat("\\vspace{1em}\n")
+
+# Titre pour la table des effets aléatoires
+cat("\\subsection*{Table des effets aléatoires}\n")
+
+# Convert random effects dataframe to LaTeX table and print
+latex_random_effects <- xtable(random_effects, caption = "Effets aléatoires du modèle 1")
+print(latex_random_effects, comment=FALSE, floating=FALSE, caption.placement="top")
+```
+
+## Tables modèle 2
+```{r echo=FALSE, results='asis', warning=FALSE}
+# Tables modèle 2
+model2 <- lmer(CD4 ~ obstime * drug + (1 + obstime|id), data=aids, control = lmerControl(optimizer = "bobyqa"))
+#summary(model2)
+
+# Extract the fixed effects
+fixed_effects2 <- summary(model2)$coefficients
+fixed_effects_df2 <- as.data.frame(fixed_effects2)
+
+# Extract random effects
+random_effects2 <- as.data.frame(VarCorr(model2))
+names(random_effects2) <- c("Effect", "Variance")
+
+# Titre pour la table des effets fixes du modèle 2
+cat("\\subsection*{Table des effets fixes - Modèle 2}\n")
+
+# Convert fixed effects dataframe of model 2 to LaTeX table and print
+latex_fixed_effects2 <- xtable(fixed_effects_df2, caption = "Effets fixes du modèle 2")
+print(latex_fixed_effects2, comment=FALSE, floating=FALSE, caption.placement="top")
+
+# Espace entre les tables
+cat("\\vspace{1em}\n")
+
+# Titre pour la table des effets aléatoires du modèle 2
+cat("\\subsection*{Table des effets aléatoires - Modèle 2}\n")
+
+# Convert random effects dataframe of model 2 to LaTeX table and print
+latex_random_effects2 <- xtable(random_effects2, caption = "Effets aléatoires du modèle 2")
+print(latex_random_effects2, comment=FALSE, floating=FALSE, caption.placement="top")
+```
+
+
